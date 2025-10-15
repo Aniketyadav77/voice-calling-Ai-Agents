@@ -1,14 +1,30 @@
 import streamlit as st
 import os
-import asyncio
 import json
 import base64
 from io import BytesIO
 import tempfile
-from deepgram import DeepgramClient, PrerecordedOptions, FileSource
-from audiorecorder import audiorecorder
 import time
 from datetime import datetime
+
+# Try importing audio recorder
+try:
+    from st_audiorec import st_audiorec
+    AUDIO_RECORDER_AVAILABLE = True
+except ImportError:
+    try:
+        from audiorecorder import audiorecorder
+        st_audiorec = audiorecorder
+        AUDIO_RECORDER_AVAILABLE = True
+    except ImportError:
+        AUDIO_RECORDER_AVAILABLE = False
+
+# Try importing Deepgram
+try:
+    from deepgram import DeepgramClient, PrerecordedOptions, FileSource
+    DEEPGRAM_AVAILABLE = True
+except ImportError:
+    DEEPGRAM_AVAILABLE = False
 
 # Configure Streamlit page
 st.set_page_config(
@@ -87,6 +103,10 @@ if 'api_key_set' not in st.session_state:
 
 def initialize_deepgram():
     """Initialize Deepgram client"""
+    if not DEEPGRAM_AVAILABLE:
+        st.error("❌ Deepgram SDK not available. Please check your requirements.txt")
+        return False
+        
     try:
         # Try to get API key from secrets first, then from user input
         api_key = None
@@ -124,7 +144,7 @@ def initialize_deepgram():
                     st.warning("Please enter your Deepgram API key to continue")
                     return False
         
-        if api_key:
+        if api_key and DEEPGRAM_AVAILABLE:
             st.session_state.deepgram_client = DeepgramClient(api_key)
             st.session_state.api_key_set = True
             return True
@@ -289,41 +309,64 @@ def main():
     with col1:
         st.markdown("### 🎙️ Voice Recording")
         
-        # Audio recorder
-        audio = audiorecorder("🎤 Start Recording", "⏹️ Stop Recording")
+        # Check if audio recorder is available
+        if not AUDIO_RECORDER_AVAILABLE:
+            st.error("🎙️ Audio recorder not available. Please use text input below.")
+            audio = None
+        else:
+            try:
+                # Try different audio recorder implementations
+                if 'st_audiorec' in globals():
+                    audio_bytes = st_audiorec()
+                    audio = audio_bytes
+                else:
+                    audio = st_audiorec("🎤 Start Recording", "⏹️ Stop Recording")
+            except Exception as e:
+                st.error(f"Audio recorder error: {str(e)}")
+                audio = None
         
         # Process audio when recorded
-        if len(audio) > 0:
+        if audio is not None and (
+            (hasattr(audio, '__len__') and len(audio) > 0) or 
+            (isinstance(audio, bytes) and len(audio) > 0)
+        ):
             # Display audio player
-            st.audio(audio.export().read())
+            try:
+                if hasattr(audio, 'export'):
+                    st.audio(audio.export().read())
+                    audio_bytes = audio.export().read()
+                else:
+                    st.audio(audio)
+                    audio_bytes = audio
+            except Exception as e:
+                st.error(f"Audio display error: {str(e)}")
+                audio_bytes = audio if isinstance(audio, bytes) else None
             
             # Transcribe audio
-            with st.spinner("🔄 Transcribing audio..."):
-                try:
-                    # Get audio data as bytes
-                    audio_bytes = audio.export().read()
-                    
-                    # Transcribe
-                    transcript = transcribe_audio(audio_bytes)
-                    
-                    if transcript and transcript.strip() and transcript != "No speech detected":
-                        # Add user message
-                        add_message("user", transcript)
+            if audio_bytes:
+                with st.spinner("🔄 Transcribing audio..."):
+                    try:
+                        # Transcribe
+                        transcript = transcribe_audio(audio_bytes)
                         
-                        # Generate AI response
-                        ai_response = generate_ai_response(transcript)
-                        add_message("assistant", ai_response)
-                        
-                        # Show success
-                        st.success(f"✅ Transcribed: {transcript}")
-                        
-                        # Rerun to show new messages
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ No clear speech detected. Please try again.")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error processing audio: {str(e)}")
+                        if transcript and transcript.strip() and transcript != "No speech detected":
+                            # Add user message
+                            add_message("user", transcript)
+                            
+                            # Generate AI response
+                            ai_response = generate_ai_response(transcript)
+                            add_message("assistant", ai_response)
+                            
+                            # Show success
+                            st.success(f"✅ Transcribed: {transcript}")
+                            
+                            # Rerun to show new messages
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ No clear speech detected. Please try again.")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error processing audio: {str(e)}")
     
     with col2:
         st.markdown("### 📊 Stats")
