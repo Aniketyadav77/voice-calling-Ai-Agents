@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Voice Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 15px 30px; font-size: 16px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .green { background: #28a745; color: white; }
+        .red { background: #dc3545; color: white; }
+        #output { background: #000; color: #0f0; padding: 20px; margin: 20px 0; border-radius: 5px; min-height: 100px; font-family: monospace; font-size: 18px; }
+        #status { padding: 10px; margin: 10px 0; background: #e9ecef; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Simple Voice AI Test</h1>
+    
+    <button id="testBtn" class="green" onclick="startTest()">Start Voice Test</button>
+    <button id="stopBtn" class="red" onclick="stopTest()" disabled>Stop Test</button>
+    
+    <div id="status">Click 'Start Voice Test' and speak into your microphone</div>
+    <div id="output">Waiting for voice input...</div>
+
+    <script>
+        let mediaRecorder;
+        let audioStream;
+        let webSocket;
+        let isRecording = false;
+
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = message;
+        }
+
+        function updateOutput(text) {
+            document.getElementById('output').innerHTML = text;
+        }
+
+        // Initialize WebSocket
+        function initWebSocket() {
+            webSocket = new WebSocket("ws://localhost:8080");
+            
+            webSocket.onopen = function() {
+                updateStatus("✅ Connected to server");
+            };
+            
+            webSocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.event === "interim-transcription") {
+                    updateOutput("🎯 TRANSCRIPTION: " + data.text);
+                }
+            };
+            
+            webSocket.onerror = function(error) {
+                updateStatus("❌ Connection error: " + error);
+            };
+            
+            webSocket.onclose = function() {
+                updateStatus("🔒 Connection closed");
+            };
+        }
+
+        async function startTest() {
+            try {
+                updateStatus("🎤 Starting microphone...");
+                
+                // Initialize WebSocket if not connected
+                if (!webSocket || webSocket.readyState !== WebSocket.OPEN) {
+                    initWebSocket();
+                    await new Promise(resolve => {
+                        const checkConnection = setInterval(() => {
+                            if (webSocket.readyState === WebSocket.OPEN) {
+                                clearInterval(checkConnection);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                }
+
+                // Get microphone access
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(audioStream, {
+                    mimeType: 'audio/webm'
+                });
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0 && webSocket && webSocket.readyState === WebSocket.OPEN) {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const arrayBuffer = reader.result;
+                            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                            
+                            webSocket.send(JSON.stringify({
+                                event: "media",
+                                media: { payload: base64 }
+                            }));
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                };
+                
+                // Start recording
+                mediaRecorder.start(250); // Send data every 250ms
+                isRecording = true;
+                
+                // Send start event
+                webSocket.send(JSON.stringify({
+                    event: "start",
+                    streamSid: "browser-test-simple"
+                }));
+                
+                document.getElementById('testBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                updateStatus("🎤 RECORDING! Speak now...");
+                updateOutput("Listening for your voice...");
+                
+            } catch (error) {
+                updateStatus("❌ Error: " + error.message);
+                console.error("Error:", error);
+            }
+        }
+
+        function stopTest() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+            
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                webSocket.send(JSON.stringify({
+                    event: "stop"
+                }));
+            }
+            
+            document.getElementById('testBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            updateStatus("✅ Test stopped. Ready for next test.");
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            updateStatus("Ready to test! Click 'Start Voice Test'");
+        });
+    </script>
+</body>
+</html>

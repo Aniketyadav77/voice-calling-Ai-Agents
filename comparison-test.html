@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Speech API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 15px 30px; font-size: 16px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .green { background: #28a745; color: white; }
+        .red { background: #dc3545; color: white; }
+        .blue { background: #007bff; color: white; }
+        #output { background: #000; color: #0f0; padding: 20px; margin: 20px 0; border-radius: 5px; min-height: 100px; font-family: monospace; font-size: 18px; }
+        #status { padding: 10px; margin: 10px 0; background: #e9ecef; border-radius: 5px; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Voice AI Test - Multiple Methods</h1>
+    
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <h3>Method 1: Web Speech API (Browser Built-in)</h3>
+        <button id="webSpeechBtn" class="blue" onclick="startWebSpeech()">🎙️ Start Web Speech</button>
+        <button id="stopWebSpeechBtn" class="red" onclick="stopWebSpeech()" disabled>⏹️ Stop Web Speech</button>
+        <div id="webSpeechStatus">Click to test browser's built-in speech recognition</div>
+    </div>
+    
+    <div style="background: #f0f8ff; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <h3>Method 2: Deepgram API Test</h3>
+        <button id="deepgramBtn" class="green" onclick="startDeepgram()">🎤 Start Deepgram</button>
+        <button id="stopDeepgramBtn" class="red" onclick="stopDeepgram()" disabled>⏹️ Stop Deepgram</button>
+        <div id="deepgramStatus">Click to test Deepgram API transcription</div>
+    </div>
+    
+    <div id="status">Choose a test method above</div>
+    <div id="output">Waiting for voice input...</div>
+
+    <script>
+        let recognition;
+        let webSocket;
+        let mediaRecorder;
+        let audioStream;
+        let isRecording = false;
+
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = message;
+        }
+
+        function updateOutput(text, method = '') {
+            const timestamp = new Date().toLocaleTimeString();
+            document.getElementById('output').innerHTML = `[${timestamp}] ${method}: ${text}`;
+        }
+
+        // Method 1: Web Speech API
+        function startWebSpeech() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                updateStatus("❌ Web Speech API not supported in this browser");
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function() {
+                updateStatus("🎤 Web Speech API listening...");
+                document.getElementById('webSpeechStatus').innerHTML = "✅ Listening with Web Speech API";
+                document.getElementById('webSpeechBtn').disabled = true;
+                document.getElementById('stopWebSpeechBtn').disabled = false;
+            };
+
+            recognition.onresult = function(event) {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                updateOutput(transcript, 'WEB SPEECH');
+            };
+
+            recognition.onerror = function(event) {
+                updateStatus("❌ Web Speech error: " + event.error);
+            };
+
+            recognition.onend = function() {
+                updateStatus("Web Speech recognition ended");
+                document.getElementById('webSpeechBtn').disabled = false;
+                document.getElementById('stopWebSpeechBtn').disabled = true;
+            };
+
+            recognition.start();
+        }
+
+        function stopWebSpeech() {
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+
+        // Method 2: Deepgram via WebSocket
+        function initWebSocket() {
+            return new Promise((resolve, reject) => {
+                webSocket = new WebSocket("ws://localhost:8080");
+                
+                webSocket.onopen = function() {
+                    updateStatus("✅ Connected to Deepgram server");
+                    resolve();
+                };
+                
+                webSocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    if (data.event === "interim-transcription") {
+                        updateOutput(data.text, 'DEEPGRAM');
+                    }
+                };
+                
+                webSocket.onerror = function(error) {
+                    updateStatus("❌ WebSocket error: " + error);
+                    reject(error);
+                };
+                
+                webSocket.onclose = function() {
+                    updateStatus("🔒 WebSocket connection closed");
+                };
+            });
+        }
+
+        async function startDeepgram() {
+            try {
+                updateStatus("🔄 Connecting to Deepgram server...");
+                
+                // Initialize WebSocket connection
+                await initWebSocket();
+                
+                // Get microphone access
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(audioStream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0 && webSocket && webSocket.readyState === WebSocket.OPEN) {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const arrayBuffer = reader.result;
+                            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                            
+                            webSocket.send(JSON.stringify({
+                                event: "media",
+                                media: { payload: base64 }
+                            }));
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                };
+                
+                // Send start event
+                webSocket.send(JSON.stringify({
+                    event: "start",
+                    streamSid: "browser-deepgram-test"
+                }));
+                
+                // Start recording
+                mediaRecorder.start(250); // Send data every 250ms
+                isRecording = true;
+                
+                document.getElementById('deepgramBtn').disabled = true;
+                document.getElementById('stopDeepgramBtn').disabled = false;
+                document.getElementById('deepgramStatus').innerHTML = "✅ Recording with Deepgram API";
+                
+                updateStatus("🎤 Deepgram recording! Speak now...");
+                updateOutput("Listening for your voice...", 'DEEPGRAM');
+                
+            } catch (error) {
+                updateStatus("❌ Deepgram error: " + error.message);
+                console.error("Error:", error);
+            }
+        }
+
+        function stopDeepgram() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+            
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                webSocket.send(JSON.stringify({
+                    event: "stop"
+                }));
+            }
+            
+            document.getElementById('deepgramBtn').disabled = false;
+            document.getElementById('stopDeepgramBtn').disabled = true;
+            document.getElementById('deepgramStatus').innerHTML = "Deepgram test stopped";
+            
+            updateStatus("✅ Deepgram test completed");
+        }
+
+        // Initialize
+        window.addEventListener('load', function() {
+            updateStatus("Ready! Try both methods to see which works better.");
+            
+            // Check Web Speech API support
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('webSpeechStatus').innerHTML = "❌ Web Speech API not supported";
+                document.getElementById('webSpeechStatus').className = "warning";
+            }
+        });
+    </script>
+</body>
+</html>

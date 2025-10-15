@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice AI Transcription - Browser Test</title>
+    <script src="https://sdk.twilio.com/js/client/releases/1.14.1/twilio.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <style>
+        .test-controls {
+            background: #f0f0f0;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #cce7ff; color: #004085; }
+        #audio-controls {
+            margin: 20px 0;
+        }
+        #transcription-container {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice AI Transcription - Browser Test</h1>
+    
+    <div class="test-controls">
+        <h3>🎙️ Browser-Based Voice Testing</h3>
+        <p>Test your voice AI transcription directly from your browser:</p>
+        
+        <div id="status"></div>
+        
+        <div id="audio-controls">
+            <button id="start-recording" class="test-button">🎤 Start Recording</button>
+            <button id="stop-recording" class="test-button" disabled>⏹️ Stop Recording</button>
+            <button id="simulate-call" class="test-button">📞 Simulate Phone Call</button>
+        </div>
+        
+        <div>
+            <label>
+                <input type="checkbox" id="use-microphone"> Use Microphone for Real-time Testing
+            </label>
+        </div>
+    </div>
+
+    <div>
+        <img src="/twilio-logo-red.png" />
+        <img src="/cloudspeechtotext.png" />
+        <h3>Live Transcription Output:</h3>
+        <p id="transcription-container">Waiting for audio input...</p>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let webSocket;
+        let isRecording = false;
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            webSocket = new WebSocket("ws://localhost:8080");
+            
+            webSocket.onopen = function() {
+                updateStatus("WebSocket connected successfully", "success");
+            };
+            
+            webSocket.onmessage = function(msg) {
+                const data = JSON.parse(msg.data);
+                if (data.event === "interim-transcription") {
+                    document.getElementById("transcription-container").innerHTML = 
+                        `<strong>Transcription:</strong> ${data.text}`;
+                }
+            };
+            
+            webSocket.onerror = function(error) {
+                updateStatus("WebSocket error: " + error, "error");
+            };
+            
+            webSocket.onclose = function() {
+                updateStatus("WebSocket connection closed", "info");
+            };
+        }
+
+        // Update status display
+        function updateStatus(message, type = "info") {
+            const statusDiv = document.getElementById("status");
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Start recording from microphone
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 8000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    audioChunks.push(event.data);
+                    // Send audio data to WebSocket for processing
+                    if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const arrayBuffer = reader.result;
+                            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                            
+                            // Simulate Twilio media message format
+                            webSocket.send(JSON.stringify({
+                                event: "media",
+                                media: {
+                                    payload: base64
+                                }
+                            }));
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = function() {
+                    updateStatus("Recording stopped", "info");
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start(100); // Send data every 100ms
+                isRecording = true;
+                
+                document.getElementById("start-recording").disabled = true;
+                document.getElementById("stop-recording").disabled = false;
+                
+                updateStatus("Recording started - speak now!", "success");
+                
+                // Send start event to WebSocket
+                if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                    webSocket.send(JSON.stringify({
+                        event: "start",
+                        streamSid: "browser-test-stream"
+                    }));
+                }
+                
+            } catch (error) {
+                updateStatus("Error accessing microphone: " + error.message, "error");
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                document.getElementById("start-recording").disabled = false;
+                document.getElementById("stop-recording").disabled = true;
+                
+                // Send stop event to WebSocket
+                if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                    webSocket.send(JSON.stringify({
+                        event: "stop"
+                    }));
+                }
+            }
+        }
+
+        // Simulate a phone call with test audio
+        function simulateCall() {
+            updateStatus("Simulating phone call...", "info");
+            
+            // Send connected event
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                webSocket.send(JSON.stringify({
+                    event: "connected"
+                }));
+                
+                setTimeout(() => {
+                    webSocket.send(JSON.stringify({
+                        event: "start",
+                        streamSid: "simulated-call-stream"
+                    }));
+                }, 500);
+                
+                // Simulate some test text
+                setTimeout(() => {
+                    document.getElementById("transcription-container").innerHTML = 
+                        "<strong>Simulated:</strong> Hello, this is a test of the voice AI transcription system.";
+                }, 2000);
+            }
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener("DOMContentLoaded", function() {
+            initWebSocket();
+            
+            document.getElementById("start-recording").onclick = startRecording;
+            document.getElementById("stop-recording").onclick = stopRecording;
+            document.getElementById("simulate-call").onclick = simulateCall;
+            
+            updateStatus("Ready for testing! Click 'Start Recording' to begin.", "info");
+        });
+    </script>
+</body>
+</html>

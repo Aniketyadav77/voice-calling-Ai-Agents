@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice AI Test - Speech Synthesis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-panel { background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; }
+        .primary { background: #007bff; color: white; }
+        .success { background: #28a745; color: white; }
+        .danger { background: #dc3545; color: white; }
+        .warning { background: #ffc107; color: black; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; }
+        #output { background: #000; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; min-height: 50px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🎙️ Voice AI Transcription - Browser Test</h1>
+    
+    <div class="test-panel">
+        <h3>Method 1: Text-to-Speech Test</h3>
+        <p>Generate speech and test transcription:</p>
+        <textarea id="testText" placeholder="Enter text to convert to speech...">Hello, this is a test of the voice AI transcription system. Can you hear me clearly?</textarea>
+        <br>
+        <button class="primary" onclick="speakText()">🔊 Speak Text</button>
+        <button class="warning" onclick="stopSpeaking()">⏹️ Stop</button>
+        <div id="speechStatus" class="status info">Ready to speak text</div>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Method 2: Microphone Test</h3>
+        <p>Use your microphone for real-time testing:</p>
+        <button class="success" id="startMic" onclick="startMicrophone()">🎤 Start Microphone</button>
+        <button class="danger" id="stopMic" onclick="stopMicrophone()" disabled>⏹️ Stop Microphone</button>
+        <div id="micStatus" class="status info">Click to start microphone test</div>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Method 3: Direct WebSocket Test</h3>
+        <button class="primary" onclick="testWebSocket()">📡 Test WebSocket Connection</button>
+        <button class="primary" onclick="simulateCall()">📞 Simulate Phone Call</button>
+        <div id="wsStatus" class="status info">WebSocket ready for testing</div>
+    </div>
+    
+    <div class="test-panel">
+        <h3>📝 Live Transcription Output:</h3>
+        <div id="output">Waiting for audio input...</div>
+    </div>
+
+    <script>
+        let webSocket;
+        let mediaRecorder;
+        let audioStream;
+        let synthesis = window.speechSynthesis;
+        
+        // Initialize WebSocket
+        function initWebSocket() {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) return;
+            
+            webSocket = new WebSocket("ws://localhost:8080");
+            
+            webSocket.onopen = () => {
+                updateStatus('wsStatus', 'WebSocket connected successfully!', 'info');
+                document.getElementById('output').innerHTML = 'WebSocket connected. Ready for testing...';
+            };
+            
+            webSocket.onmessage = (msg) => {
+                const data = JSON.parse(msg.data);
+                if (data.event === "interim-transcription") {
+                    document.getElementById('output').innerHTML = 
+                        `<strong style="color: #0ff;">[LIVE]</strong> ${data.text}`;
+                }
+            };
+            
+            webSocket.onerror = (error) => {
+                updateStatus('wsStatus', 'WebSocket error occurred', 'error');
+            };
+        }
+        
+        function updateStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            element.innerHTML = message;
+        }
+        
+        // Text-to-Speech Test
+        function speakText() {
+            const text = document.getElementById('testText').value;
+            if (!text) {
+                updateStatus('speechStatus', 'Please enter some text first', 'error');
+                return;
+            }
+            
+            updateStatus('speechStatus', 'Converting text to speech...', 'info');
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.8;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            
+            utterance.onstart = () => {
+                updateStatus('speechStatus', '🔊 Speaking... (This tests if browser audio works)', 'info');
+            };
+            
+            utterance.onend = () => {
+                updateStatus('speechStatus', 'Speech completed. Try microphone test next.', 'info');
+            };
+            
+            utterance.onerror = (error) => {
+                updateStatus('speechStatus', 'Speech error: ' + error.error, 'error');
+            };
+            
+            synthesis.speak(utterance);
+        }
+        
+        function stopSpeaking() {
+            synthesis.cancel();
+            updateStatus('speechStatus', 'Speech stopped', 'info');
+        }
+        
+        // Microphone Test
+        async function startMicrophone() {
+            try {
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 8000,
+                        channelCount: 1
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(audioStream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && webSocket && webSocket.readyState === WebSocket.OPEN) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const arrayBuffer = reader.result;
+                            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                            
+                            webSocket.send(JSON.stringify({
+                                event: "media",
+                                media: { payload: base64 }
+                            }));
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                };
+                
+                mediaRecorder.start(100); // Send data every 100ms
+                
+                document.getElementById('startMic').disabled = true;
+                document.getElementById('stopMic').disabled = false;
+                
+                updateStatus('micStatus', '🎤 Recording... Speak now!', 'info');
+                
+                // Send start event
+                if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                    webSocket.send(JSON.stringify({
+                        event: "start",
+                        streamSid: "browser-microphone-test"
+                    }));
+                }
+                
+            } catch (error) {
+                updateStatus('micStatus', 'Microphone access denied: ' + error.message, 'error');
+            }
+        }
+        
+        function stopMicrophone() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+            
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            
+            document.getElementById('startMic').disabled = false;
+            document.getElementById('stopMic').disabled = true;
+            
+            updateStatus('micStatus', 'Microphone stopped', 'info');
+            
+            // Send stop event
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                webSocket.send(JSON.stringify({
+                    event: "stop"
+                }));
+            }
+        }
+        
+        // WebSocket Tests
+        function testWebSocket() {
+            if (!webSocket || webSocket.readyState !== WebSocket.OPEN) {
+                initWebSocket();
+                setTimeout(() => testWebSocket(), 1000);
+                return;
+            }
+            
+            updateStatus('wsStatus', 'Testing WebSocket connection...', 'info');
+            
+            // Send test events
+            webSocket.send(JSON.stringify({ event: "connected" }));
+            
+            setTimeout(() => {
+                webSocket.send(JSON.stringify({
+                    event: "start",
+                    streamSid: "websocket-test-stream"
+                }));
+                updateStatus('wsStatus', 'WebSocket test completed successfully!', 'info');
+            }, 500);
+        }
+        
+        function simulateCall() {
+            updateStatus('wsStatus', 'Simulating phone call...', 'info');
+            document.getElementById('output').innerHTML = 'Simulating call... Please wait...';
+            
+            setTimeout(() => {
+                document.getElementById('output').innerHTML = 
+                    '<strong style="color: #ff0;">DEMO:</strong> This is a simulated phone call transcription test.';
+                updateStatus('wsStatus', 'Simulated call completed', 'info');
+            }, 2000);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initWebSocket();
+        });
+    </script>
+</body>
+</html>
