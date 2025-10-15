@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Live Transcription with Twilio Media Streams</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+  </head>
+  <body>
+    <h1>Live Transcription with Twilio Media Streams</h1>
+    <img src="/twilio-logo-red.png" />
+    <img src="/cloudspeechtotext.png" />
+    <h3>
+      Call your Twilio Number, start talking and watch your words magically
+      appear.
+    </h3>
+    
+    <!-- Browser Testing Panel -->
+    <div style="background: #f0f8ff; padding: 20px; margin: 20px 0; border-radius: 10px; border: 2px solid #007bff;">
+      <h3>🧪 Browser Testing (No Phone Required)</h3>
+      <p>Test the transcription system directly from your browser:</p>
+      <button id="startTest" style="background: #28a745; color: white; padding: 15px 30px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin: 10px;">
+        🎤 Start Microphone Test
+      </button>
+      <button id="stopTest" style="background: #dc3545; color: white; padding: 15px 30px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin: 10px;" disabled>
+        ⏹️ Stop Test
+      </button>
+      <div id="testStatus" style="padding: 10px; margin: 10px 0; background: #d1ecf1; border-radius: 5px;">
+        Click "Start Microphone Test" to begin browser testing
+      </div>
+    </div>
+    
+    <p id="transcription-container"></p>
+    <script>
+      let testMediaRecorder;
+      let testAudioStream;
+      
+      document.addEventListener("DOMContentLoaded", (event) => {
+        webSocket = new WebSocket("ws://localhost:8080");
+        webSocket.onmessage = function (msg) {
+          const data = JSON.parse(msg.data);
+          if (data.event === "interim-transcription") {
+            document.getElementById("transcription-container").innerHTML =
+              data.text;
+          }
+        };
+        
+        // Browser testing functionality
+        document.getElementById("startTest").onclick = async function() {
+          try {
+            document.getElementById("testStatus").innerHTML = "🎤 Requesting microphone access...";
+            
+            testAudioStream = await navigator.mediaDevices.getUserMedia({ 
+              audio: {
+                sampleRate: 8000,
+                channelCount: 1
+              } 
+            });
+            
+            testMediaRecorder = new MediaRecorder(testAudioStream);
+            
+            testMediaRecorder.ondataavailable = function(event) {
+              if (event.data.size > 0 && webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const reader = new FileReader();
+                reader.onload = function() {
+                  const arrayBuffer = reader.result;
+                  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                  
+                  webSocket.send(JSON.stringify({
+                    event: "media",
+                    media: { payload: base64 }
+                  }));
+                };
+                reader.readAsArrayBuffer(event.data);
+              }
+            };
+            
+            testMediaRecorder.start(100);
+            
+            document.getElementById("startTest").disabled = true;
+            document.getElementById("stopTest").disabled = false;
+            document.getElementById("testStatus").innerHTML = "🎤 Recording... Speak now! Your words will appear below.";
+            document.getElementById("transcription-container").innerHTML = "Listening for speech...";
+            
+            // Send start event
+            webSocket.send(JSON.stringify({
+              event: "start",
+              streamSid: "browser-test-stream"
+            }));
+            
+          } catch (error) {
+            document.getElementById("testStatus").innerHTML = "❌ Error: " + error.message + " (Make sure to allow microphone access)";
+          }
+        };
+        
+        document.getElementById("stopTest").onclick = function() {
+          if (testMediaRecorder && testMediaRecorder.state === 'recording') {
+            testMediaRecorder.stop();
+          }
+          
+          if (testAudioStream) {
+            testAudioStream.getTracks().forEach(track => track.stop());
+          }
+          
+          document.getElementById("startTest").disabled = false;
+          document.getElementById("stopTest").disabled = true;
+          document.getElementById("testStatus").innerHTML = "✅ Test completed. Ready for next test.";
+          
+          // Send stop event
+          webSocket.send(JSON.stringify({
+            event: "stop"
+          }));
+        };
+      });
+    </script>
+  </body>
+</html>
