@@ -12,23 +12,35 @@
 
 - **Real-time Voice Transcription** - Live speech-to-text using Deepgram AI
 - **Modern Chat Interface** - Glassmorphic UI inspired by ChatGPT and Gemini
+- **Streamlit Web App** - Easy-to-use web interface with one-click deployment
 - **Phone Call Integration** - Transcribe phone calls via Twilio Media Streams
 - **Browser Voice Input** - Direct microphone access for web-based interactions
-- **Multiple UI Options** - Choose from chat, futuristic, or comparison interfaces
+- **Multiple UI Options** - Choose from Streamlit app, chat, futuristic, or comparison interfaces
 - **WebSocket Streaming** - Low-latency audio processing and real-time updates
 - **Responsive Design** - Works seamlessly on desktop and mobile devices
+- **Cloud Deployment** - Ready for Streamlit Cloud with zero configuration
 
 ## 🚀 Live Demo
 
+### Streamlit App (Recommended)
 ```bash
-# Clone and run locally
+# Clone and run Streamlit version
+git clone https://github.com/Aniketyadav77/voice-calling-Ai-Agents.git
+cd voice-calling-Ai-Agents
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+### Node.js Version
+```bash
+# Clone and run Node.js version
 git clone https://github.com/Aniketyadav77/voice-calling-Ai-Agents.git
 cd voice-calling-Ai-Agents
 npm install
 npm start
 ```
 
-Visit `http://localhost:8080` to experience the AI chat interface.
+Visit `http://localhost:8501` (Streamlit) or `http://localhost:8080` (Node.js) to experience the AI chat interface.
 
 ## 📋 Prerequisites
 
@@ -137,6 +149,14 @@ Configure your Twilio phone number webhook to point to your ngrok URL.
 
 ## 🛠️ Technical Stack
 
+### Streamlit Version
+- **Framework**: Streamlit, Python 3.8+
+- **Speech-to-Text**: Deepgram SDK for Python
+- **Audio Processing**: streamlit-audiorecorder, pydub, soundfile
+- **UI Components**: Plotly, Matplotlib for visualizations
+- **Deployment**: Streamlit Cloud, Docker support
+
+### Node.js Version
 - **Backend**: Node.js, Express.js, WebSocket
 - **Speech-to-Text**: Deepgram Live Streaming API
 - **Telephony**: Twilio Media Streams
@@ -197,18 +217,45 @@ node test-server.js
 
 ## 🚀 Deployment
 
-### Local Development
+### Streamlit Cloud Deployment (Recommended)
+
+#### Quick Deploy to Streamlit Cloud:
+1. **Fork/Clone** this repository to your GitHub account
+2. **Visit** [share.streamlit.io](https://share.streamlit.io)
+3. **Connect** your GitHub account
+4. **Select** this repository and set:
+   - **Main file path**: `streamlit_app.py`
+   - **Branch**: `master`
+5. **Add secrets** in the app settings:
+   ```
+   DEEPGRAM_API_KEY = "your_deepgram_api_key_here"
+   ```
+6. **Deploy** and share your app!
+
+#### Local Streamlit Development:
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Run Streamlit app locally
+streamlit run streamlit_app.py
+```
+
+### Node.js Deployment
+
+#### Local Development
 ```bash
 npm start
 ```
 
-### Production Deployment
+#### Production Deployment
 1. Set up environment variables on your hosting platform
 2. Configure webhook URLs for production domain
 3. Enable HTTPS for secure WebSocket connections
 4. Set up proper error monitoring and logging
 
 ### Hosting Platforms
+- **Streamlit Cloud**: ⭐ Recommended for Python/Streamlit version
 - **Heroku**: Ready for deployment with included `Procfile`
 - **Vercel**: Works with serverless functions
 - **Railway**: Simple deployment with automatic builds
