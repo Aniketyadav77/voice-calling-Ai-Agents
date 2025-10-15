@@ -1,0 +1,39 @@
+{
+  "name": "voice-calling-ai-agents",
+  "version": "1.0.0",
+  "description": "A modern voice-powered AI agent with real-time speech transcription, built with Twilio Media Streams and Deepgram AI. Features a sleek chat interface inspired by modern AI assistants.",
+  "main": "index-fixed.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aniketyadav77/voice-calling-Ai-Agents.git"
+  },
+  "keywords": [
+    "voice-ai",
+    "speech-to-text",
+    "twilio",
+    "deepgram",
+    "real-time-transcription",
+    "websocket",
+    "chat-interface",
+    "ai-agent"
+  ],
+  "dependencies": {
+    "@deepgram/sdk": "^4.11.2",
+    "dotenv": "^8.1.0",
+    "express": "^4.17.1",
+    "twilio": "^5.10.1",
+    "websocket": "^1.0.29",
+    "ws": "^7.4.6"
+  },
+  "scripts": {
+    "start": "node index-fixed.js",
+    "dev": "node index-fixed.js",
+    "test": "node test-deepgram.js && node test-websocket.js"
+  },
+  "author": "Aniket Yadav <aniketyadav77@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Aniketyadav77/voice-calling-Ai-Agents/issues"
+  },
+  "homepage": "https://github.com/Aniketyadav77/voice-calling-Ai-Agents#readme"
+}
