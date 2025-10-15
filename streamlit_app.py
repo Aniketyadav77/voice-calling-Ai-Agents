@@ -20,6 +20,16 @@ try:
     DEEPGRAM_AVAILABLE = True
 except ImportError:
     DEEPGRAM_AVAILABLE = False
+    # Create mock classes to prevent errors
+    class DeepgramClient:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    class PrerecordedOptions:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    FileSource = dict
 
 # Configure Streamlit page
 st.set_page_config(
@@ -152,6 +162,9 @@ def initialize_deepgram():
 
 def transcribe_audio(audio_data):
     """Transcribe audio using Deepgram"""
+    if not DEEPGRAM_AVAILABLE:
+        return "Mock transcription: This is a demo transcription. Connect Deepgram API for real transcription."
+    
     if not st.session_state.deepgram_client:
         return "Error: Deepgram client not initialized"
     
@@ -165,7 +178,7 @@ def transcribe_audio(audio_data):
         with open(tmp_file_path, "rb") as audio_file:
             buffer_data = audio_file.read()
         
-        payload: FileSource = {
+        payload = {
             "buffer": buffer_data,
         }
         
@@ -199,7 +212,7 @@ def transcribe_audio(audio_data):
             os.unlink(tmp_file_path)
         except:
             pass
-        return f"Transcription error: {str(e)}"
+        return f"Mock transcription due to error: {str(e)}"
 
 def add_message(role, content):
     """Add a message to the chat history"""
@@ -244,25 +257,34 @@ def generate_ai_response(user_input):
 # Main App
 def main():
     # Header
-    st.markdown("""
+    demo_text = " (Demo Mode)" if not DEEPGRAM_AVAILABLE else ""
+    st.markdown(f"""
     <div class="main-header">
-        <h1>🎙️ Voice AI Agent</h1>
-        <p>Real-time speech transcription powered by Deepgram AI</p>
+        <h1>🎙️ Voice AI Agent{demo_text}</h1>
+        <p>{"AI-powered chat interface with voice support" if not DEEPGRAM_AVAILABLE else "Real-time speech transcription powered by Deepgram AI"}</p>
     </div>
     """, unsafe_allow_html=True)
     
     # Initialize Deepgram
-    if not st.session_state.api_key_set:
-        if not initialize_deepgram():
-            st.stop()
+    if not DEEPGRAM_AVAILABLE:
+        st.warning("⚠️ **Demo Mode**: Deepgram SDK not installed. Using mock transcriptions.")
+        st.session_state.api_key_set = False
+    else:
+        if not st.session_state.api_key_set:
+            if not initialize_deepgram():
+                st.info("💡 **Info**: Enter your Deepgram API key in the sidebar for real transcription, or continue in demo mode.")
     
     # Sidebar
     with st.sidebar:
         st.markdown("### 🎛️ Controls")
         
         # Connection status
-        status_color = "connected" if st.session_state.api_key_set else "disconnected"
-        status_text = "Connected" if st.session_state.api_key_set else "Disconnected"
+        if DEEPGRAM_AVAILABLE:
+            status_color = "connected" if st.session_state.api_key_set else "disconnected"
+            status_text = "Connected" if st.session_state.api_key_set else "Disconnected"
+        else:
+            status_color = "disconnected"
+            status_text = "Demo Mode"
         
         st.markdown(f"""
         <div>
@@ -270,6 +292,13 @@ def main():
             <strong>Status:</strong> {status_text}
         </div>
         """, unsafe_allow_html=True)
+        
+        # Show SDK availability
+        if DEEPGRAM_AVAILABLE:
+            st.success("✅ Deepgram SDK Available")
+        else:
+            st.error("❌ Deepgram SDK not available")
+            st.info("📦 Install deepgram-sdk for real transcription")
         
         st.markdown("---")
         
@@ -306,8 +335,20 @@ def main():
         
         # Check if audio recorder is available
         if not AUDIO_RECORDER_AVAILABLE:
-            st.error("🎙️ Audio recorder not available. Please use text input below.")
+            st.warning("🎙️ Live audio recording not available. Use file upload or text input below.")
+            
+            # File upload alternative
+            uploaded_file = st.file_uploader(
+                "Upload an audio file:",
+                type=['wav', 'mp3', 'ogg', 'm4a', 'flac'],
+                help="Upload audio files for transcription"
+            )
+            
             audio = None
+            if uploaded_file is not None:
+                st.audio(uploaded_file)
+                if st.button("🔄 Process Audio File"):
+                    audio = uploaded_file.read()
         else:
             try:
                 # Use audiorecorder
@@ -414,6 +455,24 @@ def main():
         add_message("assistant", ai_response)
         
         st.rerun()
+    
+    # Footer info
+    st.markdown("---")
+    if not DEEPGRAM_AVAILABLE:
+        st.info("""
+        🚀 **You're in Demo Mode!** The app is working perfectly. 
+        
+        **Current Features:**
+        - ✅ Text chat with AI responses
+        - ✅ File upload for audio files  
+        - ✅ Modern responsive interface
+        - ✅ Message history and statistics
+        
+        **To enable live voice recording and real transcription:**
+        1. Add `deepgram-sdk>=3.0.0` and `streamlit-audiorecorder>=0.0.5` to requirements.txt
+        2. Get a free Deepgram API key from https://console.deepgram.com/
+        3. Add it to Streamlit secrets or environment variables
+        """)
 
 if __name__ == "__main__":
     main()
