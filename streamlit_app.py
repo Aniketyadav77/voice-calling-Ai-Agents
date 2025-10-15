@@ -42,58 +42,97 @@ st.set_page_config(
 # Custom CSS for modern UI
 st.markdown("""
 <style>
+    /* Base: Apple-like glass aesthetic */
+    .stApp {
+        background: radial-gradient(1200px 600px at 10% 10%, rgba(255,255,255,0.06), transparent),
+                    radial-gradient(1000px 500px at 90% 0%, rgba(255,255,255,0.05), transparent),
+                    linear-gradient(180deg, #0b0f17 0%, #0a0d14 100%);
+        color: #E6EAF2;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Sidebar as a frosted glass control center */
+    [data-testid="stSidebar"] {
+        backdrop-filter: blur(16px);
+        background: rgba(255, 255, 255, 0.04);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    [data-testid="stSidebar"] .block-container {
+        padding-top: 1rem;
+    }
+
+    /* Header */
     .main-header {
         text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 10px;
-        margin-bottom: 2rem;
+        padding: 2.25rem 1.25rem;
+        margin-bottom: 1.5rem;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        border: 1px solid rgba(255,255,255,0.12);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+        backdrop-filter: blur(14px);
     }
-    
+    .main-header h1 { font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+    .main-header p { opacity: 0.8; margin: .4rem 0 0; }
+
+    /* Glass cards */
+    .glass-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 1rem 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35), inset 0 1px rgba(255,255,255,0.05);
+        backdrop-filter: blur(12px);
+    }
+    .section-title { font-size: 1.1rem; font-weight: 600; margin-bottom: .5rem; opacity: .9; }
+
+    /* Chat bubbles */
     .chat-message {
-        padding: 1rem;
+        padding: 0.9rem 1rem;
         margin: 0.5rem 0;
-        border-radius: 10px;
-        border-left: 4px solid #667eea;
-        background: rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255,255,255,0.1);
         backdrop-filter: blur(10px);
     }
-    
     .user-message {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-left-color: #ffffff;
+        background: linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+        color: #0b0f17;
+        border: 1px solid rgba(255,255,255,0.35);
     }
-    
     .ai-message {
-        background: rgba(102, 126, 234, 0.1);
-        border-left-color: #667eea;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255,255,255,0.08);
     }
-    
-    .status-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 8px;
+
+    /* Inputs & buttons */
+    .stTextInput input, .stTextArea textarea, .stFileUploader, .stSelectbox select {
+        background: rgba(255,255,255,0.06) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        color: #E6EAF2 !important;
+        border-radius: 12px !important;
     }
-    
-    .status-connected {
-        background-color: #4CAF50;
-        box-shadow: 0 0 10px #4CAF50;
+    .stButton > button {
+        background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06));
+        border: 1px solid rgba(255,255,255,0.22);
+        color: #E6EAF2;
+        border-radius: 12px;
+        padding: 0.5rem 1rem;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px rgba(255,255,255,0.12);
     }
-    
-    .status-disconnected {
-        background-color: #f44336;
-    }
-    
+    .stButton > button:hover { transform: translateY(-1px); transition: all .2s ease; }
+
+    /* Small status chips (if ever used later) */
+    .status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #25d366; box-shadow: 0 0 10px rgba(37,211,102,.6); }
+
     .transcription-box {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
         padding: 1rem;
-        margin: 1rem 0;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 0.5rem 0 0;
+        border: 1px solid rgba(255, 255, 255, 0.12);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -109,7 +148,7 @@ if 'api_key_set' not in st.session_state:
 def initialize_deepgram():
     """Initialize Deepgram client"""
     if not DEEPGRAM_AVAILABLE:
-        st.error("❌ Deepgram SDK not available. Please check your requirements.txt")
+        # Silently skip in demo mode
         return False
         
     try:
@@ -128,26 +167,8 @@ def initialize_deepgram():
         
         # If still no API key, ask user
         if not api_key:
-            with st.sidebar:
-                st.error("🔑 Deepgram API Key Required")
-                api_key = st.text_input(
-                    "Enter your Deepgram API Key:",
-                    type="password",
-                    help="Get your API key from https://console.deepgram.com/"
-                )
-                
-                if api_key:
-                    # Validate the API key format
-                    if len(api_key) > 10:
-                        os.environ["DEEPGRAM_API_KEY"] = api_key
-                        st.success("✅ API Key set successfully!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid API key format")
-                        return False
-                else:
-                    st.warning("Please enter your Deepgram API key to continue")
-                    return False
+            # No UI prompt; remain in demo mode gracefully
+            return False
         
         if api_key and DEEPGRAM_AVAILABLE:
             st.session_state.deepgram_client = DeepgramClient(api_key)
@@ -166,7 +187,8 @@ def transcribe_audio(audio_data):
         return "Mock transcription: This is a demo transcription. Connect Deepgram API for real transcription."
     
     if not st.session_state.deepgram_client:
-        return "Error: Deepgram client not initialized"
+        # Fall back to mock when client isn't initialized
+        return "Mock transcription: This is a demo transcription. Connect Deepgram API for real transcription."
     
     try:
         # Create a temporary file for the audio
@@ -257,81 +279,28 @@ def generate_ai_response(user_input):
 # Main App
 def main():
     # Header
-    demo_text = " (Demo Mode)" if not DEEPGRAM_AVAILABLE else ""
-    st.markdown(f"""
-    <div class="main-header">
-        <h1>🎙️ Voice AI Agent{demo_text}</h1>
-        <p>{"AI-powered chat interface with voice support" if not DEEPGRAM_AVAILABLE else "Real-time speech transcription powered by Deepgram AI"}</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize Deepgram
-    if not DEEPGRAM_AVAILABLE:
-        st.warning("⚠️ **Demo Mode**: Deepgram SDK not installed. Using mock transcriptions.")
-        st.session_state.api_key_set = False
-    else:
-        if not st.session_state.api_key_set:
-            if not initialize_deepgram():
-                st.info("💡 **Info**: Enter your Deepgram API key in the sidebar for real transcription, or continue in demo mode.")
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>🎙️ Voice AI Agent</h1>
+            <p>Elegant glass interface for voice and chat</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     
     # Sidebar
     with st.sidebar:
-        st.markdown("### 🎛️ Controls")
-        
-        # Connection status
-        if DEEPGRAM_AVAILABLE:
-            status_color = "connected" if st.session_state.api_key_set else "disconnected"
-            status_text = "Connected" if st.session_state.api_key_set else "Disconnected"
-        else:
-            status_color = "disconnected"
-            status_text = "Demo Mode"
-        
-        st.markdown(f"""
-        <div>
-            <span class="status-indicator status-{status_color}"></span>
-            <strong>Status:</strong> {status_text}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Show SDK availability
-        if DEEPGRAM_AVAILABLE:
-            st.success("✅ Deepgram SDK Available")
-        else:
-            st.error("❌ Deepgram SDK not available")
-            st.info("📦 Install deepgram-sdk for real transcription")
-        
-        st.markdown("---")
-        
-        # Clear chat button
-        if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.markdown("#### Control Center")
+        if st.button("� New Session", use_container_width=True):
             st.session_state.messages = []
-            st.rerun()
-        
-        # Instructions
-        st.markdown("### 📝 Instructions")
-        st.markdown("""
-        1. **Record Audio**: Click the record button below
-        2. **Speak Clearly**: Talk into your microphone
-        3. **Stop Recording**: Click stop when finished
-        4. **View Transcription**: See the text appear automatically
-        5. **Chat**: The AI will respond to your input
-        """)
-        
-        # Features
-        st.markdown("### ✨ Features")
-        st.markdown("""
-        - 🎙️ **Real-time Transcription**
-        - 🤖 **AI Chat Interface** 
-        - 📱 **Responsive Design**
-        - 🔒 **Secure API Integration**
-        - 🎨 **Modern UI/UX**
-        """)
+            st.experimental_rerun()
     
     # Main content area
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.markdown("### 🎙️ Voice Recording")
+        st.markdown("<div class='glass-card'><div class='section-title'>🎙️ Voice Recording</div>", unsafe_allow_html=True)
         
         # Check if audio recorder is available
         if not AUDIO_RECORDER_AVAILABLE:
@@ -399,9 +368,10 @@ def main():
                             
                     except Exception as e:
                         st.error(f"❌ Error processing audio: {str(e)}")
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### 📊 Stats")
+        st.markdown("<div class='glass-card'><div class='section-title'>📊 Session</div>", unsafe_allow_html=True)
         
         # Display statistics
         total_messages = len(st.session_state.messages)
@@ -421,16 +391,17 @@ def main():
                     break
             
             if latest_user_msg:
-                st.markdown("### 💬 Latest Transcription")
+                st.markdown("<div class='section-title' style='margin-top:.5rem'>💬 Latest Transcription</div>", unsafe_allow_html=True)
                 st.markdown(f"""
                 <div class="transcription-box">
                     <strong>Time:</strong> {latest_user_msg["timestamp"]}<br>
                     <strong>Text:</strong> {latest_user_msg["content"]}
                 </div>
                 """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     # Chat display
-    st.markdown("### 💬 Conversation")
+    st.markdown("<div class='glass-card'><div class='section-title'>💬 Conversation</div>", unsafe_allow_html=True)
     
     if st.session_state.messages:
         # Create a container for messages with scroll
@@ -438,9 +409,10 @@ def main():
             display_chat_messages()
     else:
         st.info("👋 Start by recording some audio above! Your conversation will appear here.")
+    st.markdown("</div>", unsafe_allow_html=True)
     
     # Text input as backup
-    st.markdown("### ⌨️ Text Input (Alternative)")
+    st.markdown("<div class='glass-card'><div class='section-title'>⌨️ Text Input (Alternative)</div>", unsafe_allow_html=True)
     text_input = st.text_input(
         "Type your message here:",
         placeholder="Enter text or use voice recording above..."
@@ -455,24 +427,13 @@ def main():
         add_message("assistant", ai_response)
         
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
     
     # Footer info
-    st.markdown("---")
-    if not DEEPGRAM_AVAILABLE:
-        st.info("""
-        🚀 **You're in Demo Mode!** The app is working perfectly. 
-        
-        **Current Features:**
-        - ✅ Text chat with AI responses
-        - ✅ File upload for audio files  
-        - ✅ Modern responsive interface
-        - ✅ Message history and statistics
-        
-        **To enable live voice recording and real transcription:**
-        1. Add `deepgram-sdk>=3.0.0` and `streamlit-audiorecorder>=0.0.5` to requirements.txt
-        2. Get a free Deepgram API key from https://console.deepgram.com/
-        3. Add it to Streamlit secrets or environment variables
-        """)
+    # Clean footer (no demo/status messaging)
+    st.markdown("""
+    <div style="opacity:.45; text-align:center; padding:1rem 0;">Made with ❤️ — minimal, elegant, and focused</div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
