@@ -1,0 +1,27 @@
+[global]
+# Development mode
+developmentMode = false
+
+[server]
+# Server configuration
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+# Browser configuration  
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[theme]
+# App theme
+primaryColor = "#667eea"
+backgroundColor = "#0f1419"
+secondaryBackgroundColor = "#1e293b"
+textColor = "#ffffff"
+
+[client]
+# Client configuration
+caching = true
+displayEnabled = true
