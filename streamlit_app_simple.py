@@ -6,7 +6,7 @@ from datetime import datetime
 
 # Simple error handling for imports
 try:
-    from st_audiorec import st_audiorec
+    from audio_recorder_streamlit import audio_recorder
     HAS_AUDIO_REC = True
 except ImportError:
     HAS_AUDIO_REC = False
@@ -158,7 +158,11 @@ def main():
         # Audio recorder or file upload
         if HAS_AUDIO_REC:
             st.info("🎤 Click below to record audio")
-            audio_bytes = st_audiorec()
+            audio_bytes = audio_recorder(
+                text="🎤 Click to record",
+                recording_color="#e74c3c",
+                neutral_color="#34495e"
+            )
             
             if audio_bytes:
                 st.audio(audio_bytes)

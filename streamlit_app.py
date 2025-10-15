@@ -9,15 +9,10 @@ from datetime import datetime
 
 # Try importing audio recorder
 try:
-    from st_audiorec import st_audiorec
+    from audiorecorder import audiorecorder
     AUDIO_RECORDER_AVAILABLE = True
 except ImportError:
-    try:
-        from audiorecorder import audiorecorder
-        st_audiorec = audiorecorder
-        AUDIO_RECORDER_AVAILABLE = True
-    except ImportError:
-        AUDIO_RECORDER_AVAILABLE = False
+    AUDIO_RECORDER_AVAILABLE = False
 
 # Try importing Deepgram
 try:
@@ -315,12 +310,8 @@ def main():
             audio = None
         else:
             try:
-                # Try different audio recorder implementations
-                if 'st_audiorec' in globals():
-                    audio_bytes = st_audiorec()
-                    audio = audio_bytes
-                else:
-                    audio = st_audiorec("🎤 Start Recording", "⏹️ Stop Recording")
+                # Use audiorecorder
+                audio = audiorecorder("🎤 Start Recording", "⏹️ Stop Recording")
             except Exception as e:
                 st.error(f"Audio recorder error: {str(e)}")
                 audio = None
